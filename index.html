@@ -90,9 +90,6 @@
             flex-wrap: wrap;
         }
 
-        .month-select { width: 90px; padding: 6px; }
-        .year-select { width: 80px; padding: 6px; }
-
         .interval-toggle {
             display: flex;
             align-items: center;
@@ -164,7 +161,7 @@
             padding: 10px;
             border: 1px solid var(--border);
             border-radius: 6px;
-            font-size: 16px; /* 16px prevents iOS Safari from auto-zooming on focus */
+            font-size: 0.9rem;
             background-color: #fff;
         }
 
@@ -212,9 +209,6 @@
             color: #333;
             font-weight: bold;
             min-width: 34px;
-            position: sticky;
-            top: 0;
-            z-index: 4;
         }
 
         th.sunday-col {
@@ -253,7 +247,7 @@
 
         th.sticky-col {
             background-color: #f0f4f1 !important;
-            z-index: 5;
+            z-index: 3;
         }
 
         .day-cell {
@@ -324,65 +318,6 @@
         .next-date-label { font-weight: bold; color: var(--primary); }
         .btn-cancel { background-color: #757575; margin-top: 6px; }
         .help-text { font-size: 0.75rem; color: #666; margin-top: 4px; text-align: right; }
-
-        /* Phone-friendly adjustments */
-        @media (max-width: 600px) {
-            body { padding: 6px; }
-
-            header h1 { font-size: 1.15rem; line-height: 1.3; }
-
-            .controls-bar {
-                flex-direction: column;
-                align-items: stretch;
-                padding: 10px;
-            }
-
-            .controls-bar .control-group {
-                justify-content: space-between;
-                width: 100%;
-            }
-
-            .month-select,
-            .year-select {
-                width: auto;
-                flex: 1;
-                min-width: 0;
-            }
-
-            .interval-toggle {
-                flex: 1;
-            }
-
-            .interval-btn {
-                flex: 1;
-                padding: 10px 8px;
-                font-size: 0.85rem;
-            }
-
-            .card { padding: 10px; }
-
-            .help-text { text-align: left; }
-
-            /* Bigger, easier-to-tap day cells and clearer action buttons */
-            .day-cell {
-                min-width: 38px;
-                height: 40px;
-                font-size: 0.9rem;
-            }
-
-            .action-btns {
-                flex-direction: column;
-                gap: 6px;
-            }
-
-            .btn-edit, .btn-reset, .btn-delete {
-                width: 100%;
-                padding: 8px 6px;
-                font-size: 0.75rem;
-            }
-
-            table { font-size: 0.75rem; }
-        }
     </style>
 </head>
 <body>
@@ -396,13 +331,13 @@
     <div class="controls-bar">
         <div class="control-group">
             <label for="viewMonth" style="margin:0;"><strong>Month:</strong></label>
-            <select id="viewMonth" onchange="changeViewPeriod()" class="month-select">
+            <select id="viewMonth" onchange="changeViewPeriod()" style="width: 90px; padding: 6px;">
                 <option value="0">Jan</option><option value="1">Feb</option><option value="2">Mar</option>
                 <option value="3">Apr</option><option value="4">May</option><option value="5">Jun</option>
                 <option value="6">Jul</option><option value="7">Aug</option><option value="8">Sep</option>
                 <option value="9">Oct</option><option value="10">Nov</option><option value="11">Dec</option>
             </select>
-            <select id="viewYear" onchange="changeViewPeriod()" class="year-select">
+            <select id="viewYear" onchange="changeViewPeriod()" style="width: 80px; padding: 6px;">
                 <option value="2025">2025</option>
                 <option value="2026">2026</option>
                 <option value="2027">2027</option>
@@ -456,12 +391,13 @@
 </div>
 
 <script>
+    // Updated configuration matching your interval-monitor Firebase Database
     const firebaseConfig = {
         apiKey: "AIzaSyAXtaO7IVfKzRXs91hC0IB6RhEReJQXBH0",
-        authDomain: "interval-spray.firebaseapp.com",
-        databaseURL: "https://interval-spray-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "interval-spray",
-        storageBucket: "interval-spray.firebasestorage.app",
+        authDomain: "interval-monitor.firebaseapp.com",
+        databaseURL: "https://interval-monitor-default-rtdb.asia-southeast1.firebasedatabase.app/",
+        projectId: "interval-monitor",
+        storageBucket: "interval-monitor.firebasestorage.app",
         messagingSenderId: "499193320194",
         appId: "1:499193320194:web:30f35ac029d64c74c0281b"
     };
@@ -632,7 +568,6 @@
             
             const targetDayNumber = isTargetInCurrentMonth ? nextDateObj.getDate() : null;
 
-            // Overdue if today's running sequence number exceeds active interval target
             const currentDayNumberToday = (record.dailyDays && record.dailyDays[realTodayKey]) ? record.dailyDays[realTodayKey] : 0;
             const isOverdue = currentDayNumberToday > targetIntervalDays;
 
