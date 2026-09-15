@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Leepang 2 Estate - Spray Interval Tracker</title>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #f4f6f8;
+            --card-bg: #ffffff;
+            --primary: #2e7d32;
+            --text-main: #333333;
+            --border: #cccccc;
+            --danger: #c62828;
+            --warning: #ef6c00;
+            --reset-btn: #d32f2f;
+            --highlight: #c8e6c9;
+            --highlight-border: #2e7d32;
+            --circle-color: #d32f2f;
+            --sunday-bg: #ffebee;
+            --sunday-header: #f44336;
+            --today-bg: #e3f2fd;
+            --today-header: #1976d2;
+            --overdue-bg: #d32f2f;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 10px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1500px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.4rem;
+            color: var(--primary);
+        }
+
+        .sync-badge {
+            display: inline-block;
+            background: #e8f5e9;
+            color: var(--primary);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-top: 4px;
+        }
+
+        .controls-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card-bg);
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .controls-bar .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .month-select { width: 90px; padding: 6px; }
+        .year-select { width: 80px; padding: 6px; }
+
+        .interval-toggle {
+            display: flex;
+            align-items: center;
+            background: #e0e0e0;
+            border-radius: 20px;
+            padding: 2px;
+            gap: 2px;
+        }
+
+        .interval-btn {
+            border: none;
+            background: transparent;
+            padding: 6px 12px;
+            border-radius: 18px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #555;
+            cursor: pointer;
+            width: auto;
+            transition: all 0.2s ease;
+        }
+
+        .interval-btn.active {
+            background: var(--primary);
+            color: #ffffff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+
+        @media (min-width: 992px) {
+            .grid-layout {
+                grid-template-columns: 280px 1fr;
+            }
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid var(--border);
+        }
+
+        .card h2 {
+            margin-top: 0;
+            font-size: 1rem;
+            color: var(--primary);
+            border-bottom: 2px solid var(--bg-color);
+            padding-bottom: 6px;
+            margin-bottom: 10px;
+        }
+
+        .form-group { margin-bottom: 10px; }
+
+        label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 16px; /* 16px prevents iOS Safari from auto-zooming on focus */
+            background-color: #fff;
+        }
+
+        button {
+            width: 100%;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        button:active { opacity: 0.8; }
+
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            max-width: 100%;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 0.8rem;
+        }
+
+        th, td {
+            text-align: center;
+            padding: 6px 4px;
+            border-right: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            background-color: #fff;
+            white-space: nowrap;
+        }
+
+        th {
+            background-color: #f0f4f1;
+            color: #333;
+            font-weight: bold;
+            min-width: 34px;
+            position: sticky;
+            top: 0;
+            z-index: 4;
+        }
+
+        th.sunday-col {
+            background-color: var(--sunday-header) !important;
+            color: #ffffff !important;
+        }
+
+        td.sunday-col {
+            background-color: var(--sunday-bg) !important;
+        }
+
+        th.today-col {
+            background-color: var(--today-header) !important;
+            color: #ffffff !important;
+        }
+
+        td.today-col {
+            background-color: var(--today-bg) !important;
+        }
+
+        .sticky-col {
+            position: sticky;
+            left: 0;
+            z-index: 2;
+            background-color: #fff !important;
+            border-right: 2px solid var(--border) !important;
+            text-align: left;
+            padding-left: 6px;
+            padding-right: 6px;
+        }
+
+        .sticky-col.overdue-block {
+            background-color: var(--overdue-bg) !important;
+            color: #ffffff !important;
+        }
+
+        th.sticky-col {
+            background-color: #f0f4f1 !important;
+            z-index: 5;
+        }
+
+        .day-cell {
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            height: 34px;
+            min-width: 34px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: background-color 0.15s ease;
+            position: relative;
+        }
+
+        .day-cell:hover {
+            background-color: #f5f5f5;
+        }
+
+        .circled-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            border: 2px solid var(--circle-color);
+            border-radius: 50%;
+            color: var(--circle-color);
+            font-weight: bold;
+        }
+
+        .target-day {
+            background-color: var(--highlight) !important;
+            border: 2px solid var(--highlight-border) !important;
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 4px;
+            justify-content: center;
+        }
+
+        .btn-edit, .btn-reset, .btn-delete {
+            padding: 4px 6px;
+            font-size: 0.7rem;
+            border-radius: 4px;
+            cursor: pointer;
+            width: auto;
+            font-weight: bold;
+            background-color: transparent;
+        }
+
+        .btn-edit {
+            color: var(--warning);
+            border: 1px solid var(--warning);
+        }
+
+        .btn-reset {
+            color: var(--reset-btn);
+            border: 1px solid var(--reset-btn);
+        }
+
+        .btn-delete {
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        .date-display { font-weight: bold; }
+        .next-date-label { font-weight: bold; color: var(--primary); }
+        .btn-cancel { background-color: #757575; margin-top: 6px; }
+        .help-text { font-size: 0.75rem; color: #666; margin-top: 4px; text-align: right; }
+
+        /* Phone-friendly adjustments */
+        @media (max-width: 600px) {
+            body { padding: 6px; }
+
+            header h1 { font-size: 1.15rem; line-height: 1.3; }
+
+            .controls-bar {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 10px;
+            }
+
+            .controls-bar .control-group {
+                justify-content: space-between;
+                width: 100%;
+            }
+
+            .month-select,
+            .year-select {
+                width: auto;
+                flex: 1;
+                min-width: 0;
+            }
+
+            .interval-toggle {
+                flex: 1;
+            }
+
+            .interval-btn {
+                flex: 1;
+                padding: 10px 8px;
+                font-size: 0.85rem;
+            }
+
+            .card { padding: 10px; }
+
+            .help-text { text-align: left; }
+
+            /* Bigger, easier-to-tap day cells and clearer action buttons */
+            .day-cell {
+                min-width: 38px;
+                height: 40px;
+                font-size: 0.9rem;
+            }
+
+            .action-btns {
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .btn-edit, .btn-reset, .btn-delete {
+                width: 100%;
+                padding: 8px 6px;
+                font-size: 0.75rem;
+            }
+
+            table { font-size: 0.75rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Leepang 2 Estate - Spray Interval Tracker</h1>
+        <div class="sync-badge" id="statusBadge">☁️ Connecting Sync...</div>
+    </header>
+
+    <div class="controls-bar">
+        <div class="control-group">
+            <label for="viewMonth" style="margin:0;"><strong>Month:</strong></label>
+            <select id="viewMonth" onchange="changeViewPeriod()" class="month-select">
+                <option value="0">Jan</option><option value="1">Feb</option><option value="2">Mar</option>
+                <option value="3">Apr</option><option value="4">May</option><option value="5">Jun</option>
+                <option value="6">Jul</option><option value="7">Aug</option><option value="8">Sep</option>
+                <option value="9">Oct</option><option value="10">Nov</option><option value="11">Dec</option>
+            </select>
+            <select id="viewYear" onchange="changeViewPeriod()" class="year-select">
+                <option value="2025">2025</option>
+                <option value="2026">2026</option>
+                <option value="2027">2027</option>
+            </select>
+            <span id="daysCountLabel" style="font-size: 0.8rem; font-weight: bold; color: var(--primary);">31 Days</span>
+        </div>
+
+        <div class="control-group">
+            <label style="margin:0;"><strong>Target Interval:</strong></label>
+            <div class="interval-toggle">
+                <button type="button" class="interval-btn" id="btnInterval30" onclick="setIntervalDays(30)">30 Days</button>
+                <button type="button" class="interval-btn active" id="btnInterval45" onclick="setIntervalDays(45)">45 Days</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid-layout">
+        <div class="card">
+            <h2 id="formTitle">Add Block Program</h2>
+            <form id="sprayForm">
+                <input type="hidden" id="editKey" value="">
+                <div class="form-group">
+                    <label for="block">Field / Block Name</label>
+                    <input type="text" id="block" placeholder="e.g., 25B - 96L" required>
+                </div>
+                <div class="form-group">
+                    <label for="sprayType">Type of Spray</label>
+                    <select id="sprayType" required>
+                        <option value="Circle & Path Spray" selected>Circle & Path Spray</option>
+                        <option value="Selective Spray">Selective Spray</option>
+                    </select>
+                </div>
+                <button type="submit" id="submitBtn">Add Program</button>
+                <button type="button" id="cancelBtn" class="btn-cancel" style="display: none;" onclick="resetForm()">Cancel Edit</button>
+            </form>
+        </div>
+
+        <div class="card" style="padding: 6px;">
+            <h2>Daily Checklist Matrix</h2>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr id="tableHeaderRow"></tr>
+                    </thead>
+                    <tbody id="sprayTableBody"></tbody>
+                </table>
+            </div>
+            <div class="help-text" id="helpTextLabel">💡 <strong>Red Block Name:</strong> Overdue (>45 Days). | <strong>Blue Column:</strong> Today. | <strong>Red Columns:</strong> Sunday. | <strong>Click:</strong> Start Sequence.</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyAXtaO7IVfKzRXs91hC0IB6RhEReJQXBH0",
+        authDomain: "interval-spray.firebaseapp.com",
+        databaseURL: "https://interval-spray-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "interval-spray",
+        storageBucket: "interval-spray.firebasestorage.app",
+        messagingSenderId: "499193320194",
+        appId: "1:499193320194:web:30f35ac029d64c74c0281b"
+    };
+
+    let db = null;
+    let recordsMap = {};
+    let isCloudActive = false;
+
+    try {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.database().ref('spray_tracker_records');
+        
+        db.on('value', (snapshot) => {
+            recordsMap = snapshot.val() || {};
+            isCloudActive = true;
+            document.getElementById('statusBadge').innerText = "☁️ Live Multi-Device Sync Active";
+            renderTable();
+        }, () => {
+            enableLocalStorageFallback();
+        });
+    } catch(e) {
+        enableLocalStorageFallback();
+    }
+
+    function enableLocalStorageFallback() {
+        isCloudActive = false;
+        document.getElementById('statusBadge').innerText = "💾 Local Offline Mode";
+        recordsMap = JSON.parse(localStorage.getItem('sprayLocalRecords')) || {};
+        renderTable();
+    }
+
+    function saveLocal() {
+        if (!isCloudActive) {
+            localStorage.setItem('sprayLocalRecords', JSON.stringify(recordsMap));
+        }
+    }
+
+    const form = document.getElementById('sprayForm');
+    const formTitle = document.getElementById('formTitle');
+    const submitBtn = document.getElementById('submitBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const editKeyInput = document.getElementById('editKey');
+    const tableBody = document.getElementById('sprayTableBody');
+    const tableHeaderRow = document.getElementById('tableHeaderRow');
+    const viewMonthSelect = document.getElementById('viewMonth');
+    const viewYearSelect = document.getElementById('viewYear');
+    const daysCountLabel = document.getElementById('daysCountLabel');
+
+    let targetIntervalDays = 45;
+    const realToday = new Date();
+    realToday.setHours(0,0,0,0);
+
+    let currentMonth = realToday.getMonth();
+    let currentYear = realToday.getFullYear();
+
+    viewMonthSelect.value = currentMonth;
+    viewYearSelect.value = currentYear;
+
+    function setIntervalDays(days) {
+        targetIntervalDays = days;
+        document.getElementById('btnInterval30').classList.toggle('active', days === 30);
+        document.getElementById('btnInterval45').classList.toggle('active', days === 45);
+        document.getElementById('helpTextLabel').innerHTML = `💡 <strong>Red Block Name:</strong> Overdue (>${days} Days). | <strong>Blue Column:</strong> Today. | <strong>Red Columns:</strong> Sunday. | <strong>Click:</strong> Start Sequence.`;
+        renderTable();
+    }
+
+    function getRedCircledStartDate(record) {
+        if (!record) return null;
+        
+        if (record.circledDays) {
+            const circledDates = Object.keys(record.circledDays).filter(k => record.circledDays[k] === true);
+            if (circledDates.length > 0) {
+                circledDates.sort((a, b) => new Date(a) - new Date(b));
+                return circledDates[0];
+            }
+        }
+        
+        if (record.dailyDays) {
+            const recordedDates = Object.keys(record.dailyDays).filter(k => record.dailyDays[k] !== null && record.dailyDays[k] !== undefined);
+            if (recordedDates.length > 0) {
+                recordedDates.sort((a, b) => new Date(a) - new Date(b));
+                return recordedDates[0];
+            }
+        }
+        return null;
+    }
+
+    function calculateNextDate(startDateStr) {
+        if (!startDateStr) return null;
+        const d = new Date(startDateStr);
+        d.setDate(d.getDate() + targetIntervalDays);
+        return d;
+    }
+
+    function formatDateShort(dateStrOrObj) {
+        if (!dateStrOrObj) return '-';
+        const d = new Date(dateStrOrObj);
+        if (isNaN(d)) return '-';
+        return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`;
+    }
+
+    function getDaysInMonth(month, year) {
+        return new Date(year, month + 1, 0).getDate();
+    }
+
+    function getDateKey(year, month, day) {
+        const m = String(month + 1).padStart(2, '0');
+        const d = String(day).padStart(2, '0');
+        return `${year}-${m}-${d}`;
+    }
+
+    function changeViewPeriod() {
+        currentMonth = parseInt(viewMonthSelect.value);
+        currentYear = parseInt(viewYearSelect.value);
+        renderTable();
+    }
+
+    function renderTable() {
+        const totalDays = getDaysInMonth(currentMonth, currentYear);
+        daysCountLabel.innerText = `${totalDays} Days`;
+
+        let headerHTML = `
+            <th class="sticky-col">Block</th>
+            <th>Type</th>
+            <th>Start Date</th>
+            <th>Next (+${targetIntervalDays}d)</th>
+        `;
+
+        const isCurrentViewRealPeriod = (currentMonth === realToday.getMonth() && currentYear === realToday.getFullYear());
+        const realTodayDateNumber = isCurrentViewRealPeriod ? realToday.getDate() : null;
+
+        for (let day = 1; day <= totalDays; day++) {
+            const dateObj = new Date(currentYear, currentMonth, day);
+            const isSunday = (dateObj.getDay() === 0);
+            const isToday = (day === realTodayDateNumber);
+
+            let colClass = '';
+            if (isToday) {
+                colClass = 'today-col';
+            } else if (isSunday) {
+                colClass = 'sunday-col';
+            }
+
+            headerHTML += `<th class="${colClass}">${day}</th>`;
+        }
+
+        headerHTML += `<th>Action</th>`;
+        tableHeaderRow.innerHTML = headerHTML;
+
+        tableBody.innerHTML = '';
+        
+        const keys = Object.keys(recordsMap);
+        if (keys.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="${totalDays + 5}" style="text-align:center; color:#888; padding: 20px;">No programs added yet.</td></tr>`;
+            return;
+        }
+
+        const realTodayKey = getDateKey(realToday.getFullYear(), realToday.getMonth(), realToday.getDate());
+
+        keys.forEach((key) => {
+            const record = recordsMap[key];
+            const circledStartDateStr = getRedCircledStartDate(record);
+            const nextDateObj = calculateNextDate(circledStartDateStr);
+            
+            const isTargetInCurrentMonth = nextDateObj && 
+                nextDateObj.getMonth() === currentMonth && 
+                nextDateObj.getFullYear() === currentYear;
+            
+            const targetDayNumber = isTargetInCurrentMonth ? nextDateObj.getDate() : null;
+
+            // Overdue if today's running sequence number exceeds active interval target
+            const currentDayNumberToday = (record.dailyDays && record.dailyDays[realTodayKey]) ? record.dailyDays[realTodayKey] : 0;
+            const isOverdue = currentDayNumberToday > targetIntervalDays;
+
+            let dayCells = '';
+            for (let day = 1; day <= totalDays; day++) {
+                const dateKey = getDateKey(currentYear, currentMonth, day);
+                const dateObj = new Date(currentYear, currentMonth, day);
+                const isSunday = (dateObj.getDay() === 0);
+                const isToday = (day === realTodayDateNumber);
+
+                let colClass = '';
+                if (isToday) {
+                    colClass = 'today-col';
+                } else if (isSunday) {
+                    colClass = 'sunday-col';
+                }
+
+                const dayVal = record.dailyDays && record.dailyDays[dateKey] !== undefined ? record.dailyDays[dateKey] : '';
+                const isCircle = record.circledDays && record.circledDays[dateKey];
+                const isHighlight = (day === targetDayNumber) ? 'target-day' : '';
+
+                let displayVal = dayVal;
+                if (dayVal !== '' && isCircle) {
+                    displayVal = `<span class="circled-num">${displayVal}</span>`;
+                }
+
+                dayCells += `
+                    <td class="day-cell ${colClass} ${isHighlight}" 
+                        onmousedown="handlePressStart(this, '${key}', '${dateKey}')"
+                        onmouseup="handlePressEnd(event)"
+                        onmouseleave="handlePressCancel(event)"
+                        ontouchstart="handlePressStart(this, '${key}', '${dateKey}')"
+                        ontouchend="handlePressEnd(event)"
+                        ontouchcancel="handlePressCancel(event)"
+                        oncontextmenu="handleCellRightClick(event, '${key}', '${dateKey}')">
+                        ${displayVal}
+                    </td>
+                `;
+            }
+
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="sticky-col ${isOverdue ? 'overdue-block' : ''}"><strong>${record.block}</strong></td>
+                <td>${record.sprayType === 'Circle & Path Spray' ? 'Circle/Path' : 'Selective'}</td>
+                <td class="date-display">${formatDateShort(circledStartDateStr)}</td>
+                <td class="next-date-label">${formatDateShort(nextDateObj)}</td>
+                ${dayCells}
+                <td>
+                    <div class="action-btns">
+                        <button class="btn-edit" onclick="editRecord('${key}')">Edit</button>
+                        <button class="btn-reset" onclick="resetBlockSequence('${key}')">Reset</button>
+                        <button class="btn-delete" onclick="deleteRecord('${key}')">Del</button>
+                    </div>
+                </td>
+            `;
+            tableBody.appendChild(row);
+        });
+    }
+
+    let pressTimer = null;
+    let isLongPress = false;
+
+    function handlePressStart(cellElem, key, dateKey) {
+        isLongPress = false;
+        pressTimer = setTimeout(() => {
+            isLongPress = true;
+            toggleRedCircle(key, dateKey);
+        }, 500);
+        
+        cellElem.dataset.pendingKey = key;
+        cellElem.dataset.pendingDateKey = dateKey;
+    }
+
+    function handlePressEnd(event) {
+        const cellElem = event.currentTarget;
+        clearTimeout(pressTimer);
+        
+        if (!isLongPress && cellElem && cellElem.dataset.pendingKey) {
+            autoApplyStartOne(
+                cellElem.dataset.pendingKey, 
+                cellElem.dataset.pendingDateKey
+            );
+        }
+        resetPressData(cellElem);
+    }
+
+    function handlePressCancel(event) {
+        clearTimeout(pressTimer);
+        resetPressData(event.currentTarget);
+    }
+
+    function resetPressData(elem) {
+        if (elem && elem.dataset) {
+            delete elem.dataset.pendingKey;
+            delete elem.dataset.pendingDateKey;
+        }
+    }
+
+    function toggleRedCircle(key, dateKey) {
+        const record = recordsMap[key];
+        if (!record.dailyDays || record.dailyDays[dateKey] === undefined || record.dailyDays[dateKey] === '') return;
+
+        if (!record.circledDays) record.circledDays = {};
+        const isCircled = !record.circledDays[dateKey];
+
+        if (isCloudActive) {
+            db.child(key).child('circledDays').child(dateKey).set(isCircled);
+        } else {
+            record.circledDays[dateKey] = isCircled;
+            saveLocal();
+            renderTable();
+        }
+    }
+
+    function autoApplyStartOne(key, dateKey) {
+        const record = recordsMap[key];
+        let currDate = new Date(dateKey);
+        currDate.setHours(0,0,0,0);
+
+        let updatesDaily = {};
+        let currentDayNum = 1;
+
+        while (currentDayNum <= targetIntervalDays || currDate <= realToday) {
+            let y = currDate.getFullYear();
+            let m = String(currDate.getMonth() + 1).padStart(2, '0');
+            let d = String(currDate.getDate()).padStart(2, '0');
+            let keyStr = `${y}-${m}-${d}`;
+
+            updatesDaily[keyStr] = currentDayNum;
+            currDate.setDate(currDate.getDate() + 1);
+            currentDayNum++;
+        }
+
+        if (isCloudActive) {
+            db.child(key).child('dailyDays').update(updatesDaily);
+        } else {
+            if (!record.dailyDays) record.dailyDays = {};
+            Object.assign(record.dailyDays, updatesDaily);
+            saveLocal();
+            renderTable();
+        }
+    }
+
+    window.handleCellRightClick = function(event, key, dateKey) {
+        event.preventDefault();
+        const record = recordsMap[key];
+        if (confirm(`Clear day sequence starting from date ${dateKey}?`)) {
+            if (!record.dailyDays) return;
+
+            let currDate = new Date(dateKey);
+            currDate.setHours(0,0,0,0);
+
+            let updatesDaily = {};
+            let updatesCircled = {};
+            let currentDayNum = 1;
+
+            while (currentDayNum <= targetIntervalDays || currDate <= realToday) {
+                let y = currDate.getFullYear();
+                let m = String(currDate.getMonth() + 1).padStart(2, '0');
+                let d = String(currDate.getDate()).padStart(2, '0');
+                let keyStr = `${y}-${m}-${d}`;
+
+                updatesDaily[keyStr] = null;
+                updatesCircled[keyStr] = null;
+
+                currDate.setDate(currDate.getDate() + 1);
+                currentDayNum++;
+            }
+
+            if (isCloudActive) {
+                db.child(key).child('dailyDays').update(updatesDaily);
+                db.child(key).child('circledDays').update(updatesCircled);
+            } else {
+                Object.keys(updatesDaily).forEach(k => {
+                    delete record.dailyDays[k];
+                    delete record.circledDays[k];
+                });
+                saveLocal();
+                renderTable();
+            }
+        }
+    };
+
+    window.resetBlockSequence = function(key) {
+        const record = recordsMap[key];
+        if (confirm(`Reset all running numbers and circled dates for Block "${record.block}"?`)) {
+            if (isCloudActive) {
+                db.child(key).child('dailyDays').remove();
+                db.child(key).child('circledDays').remove();
+            } else {
+                recordsMap[key].dailyDays = {};
+                recordsMap[key].circledDays = {};
+                saveLocal();
+                renderTable();
+            }
+        }
+    };
+
+    window.editRecord = function(key) {
+        const record = recordsMap[key];
+        document.getElementById('block').value = record.block;
+        document.getElementById('sprayType').value = record.sprayType;
+        editKeyInput.value = key;
+
+        formTitle.innerText = 'Edit Program';
+        submitBtn.innerText = 'Update Program';
+        cancelBtn.style.display = 'block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    function resetForm() {
+        form.reset();
+        editKeyInput.value = '';
+        formTitle.innerText = 'Add Block Program';
+        submitBtn.innerText = 'Add Program';
+        cancelBtn.style.display = 'none';
+    }
+
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        const editKey = editKeyInput.value;
+        const blockVal = document.getElementById('block').value;
+        const sprayTypeVal = document.getElementById('sprayType').value;
+
+        if (isCloudActive) {
+            if (editKey) {
+                db.child(editKey).update({ block: blockVal, sprayType: sprayTypeVal });
+            } else {
+                db.push({ block: blockVal, sprayType: sprayTypeVal, dailyDays: {}, circledDays: {} });
+            }
+        } else {
+            const key = editKey || 'rec_' + Date.now();
+            if (!recordsMap[key]) recordsMap[key] = { dailyDays: {}, circledDays: {} };
+            recordsMap[key].block = blockVal;
+            recordsMap[key].sprayType = sprayTypeVal;
+            saveLocal();
+            renderTable();
+        }
+
+        resetForm();
+    });
+
+    window.deleteRecord = function(key) {
+        if (confirm('Delete this program?')) {
+            if (isCloudActive) {
+                db.child(key).remove();
+            } else {
+                delete recordsMap[key];
+                saveLocal();
+                renderTable();
+            }
+            resetForm();
+        }
+    };
+
+    renderTable();
+</script>
+
+</body>
+</html>
