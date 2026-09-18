@@ -2,11 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leepang 2 Estate - Spray Interval Tracker</title>
-    
+
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
     <style>
@@ -18,7 +19,7 @@
             --border: #cccccc;
             --danger: #c62828;
             --warning: #ef6c00;
-            --reset-btn: #d32f2f;
+            --soon: #e65100;
             --highlight: #c8e6c9;
             --highlight-border: #2e7d32;
             --circle-color: #d32f2f;
@@ -33,6 +34,8 @@
             box-sizing: border-box;
             -webkit-tap-highlight-color: transparent;
         }
+
+        [hidden] { display: none !important; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -61,91 +64,46 @@
 
         .sync-badge {
             display: inline-block;
-            background: #e8f5e9;
-            color: var(--primary);
             padding: 4px 10px;
             border-radius: 12px;
             font-size: 0.75rem;
             font-weight: bold;
             margin-top: 4px;
+            background: #e8f5e9;
+            color: var(--primary);
         }
+        .sync-badge[data-state="warn"] { background: #fff3e0; color: var(--soon); }
+        .sync-badge[data-state="err"]  { background: #ffebee; color: var(--danger); }
 
-        .controls-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: var(--card-bg);
-            padding: 10px 12px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            margin-bottom: 12px;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-
-        .controls-bar .control-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .interval-toggle {
-            display: flex;
-            align-items: center;
-            background: #e0e0e0;
-            border-radius: 20px;
-            padding: 2px;
-            gap: 2px;
-        }
-
-        .interval-btn {
+        .link-btn {
+            background: none;
             border: none;
-            background: transparent;
-            padding: 6px 12px;
-            border-radius: 18px;
-            font-size: 0.8rem;
-            font-weight: bold;
-            color: #555;
+            color: #1976d2;
+            font-size: 0.75rem;
+            text-decoration: underline;
+            padding: 4px 6px;
+            margin-left: 4px;
+        }
+
+        button {
+            font-family: inherit;
             cursor: pointer;
-            width: auto;
-            transition: all 0.2s ease;
+            touch-action: manipulation;
         }
+        button:active { opacity: 0.8; }
 
-        .interval-btn.active {
-            background: var(--primary);
-            color: #ffffff;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-        }
-
-        .btn-sync-today {
-            background-color: #0288d1;
+        .btn {
+            width: 100%;
+            background-color: var(--primary);
             color: white;
             border: none;
-            padding: 8px 14px;
+            padding: 12px;
             border-radius: 6px;
-            font-size: 0.8rem;
+            font-size: 0.9rem;
             font-weight: bold;
-            cursor: pointer;
-            width: auto;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
         }
-
-        .btn-sync-today:active {
-            opacity: 0.85;
-        }
-
-        .grid-layout {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 12px;
-        }
-
-        @media (min-width: 992px) {
-            .grid-layout {
-                grid-template-columns: 280px 1fr;
-            }
-        }
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .btn-cancel { background-color: #757575; margin-top: 6px; }
 
         .card {
             background: var(--card-bg);
@@ -153,6 +111,7 @@
             padding: 12px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
             border: 1px solid var(--border);
+            margin-bottom: 12px;
         }
 
         .card h2 {
@@ -173,30 +132,136 @@
             margin-bottom: 4px;
         }
 
+        /* 16px inputs stop iOS from zooming the page when a field is focused */
         input, select {
             width: 100%;
             padding: 10px;
             border: 1px solid var(--border);
             border-radius: 6px;
-            font-size: 0.9rem;
+            font-size: 16px;
+            font-family: inherit;
             background-color: #fff;
         }
 
-        button {
-            width: 100%;
-            background-color: var(--primary);
-            color: white;
-            border: none;
-            padding: 12px;
-            border-radius: 6px;
-            font-size: 0.9rem;
-            font-weight: bold;
-            cursor: pointer;
-            touch-action: manipulation;
+        .form-error {
+            color: var(--danger);
+            font-size: 0.8rem;
+            margin-top: 6px;
+            min-height: 1em;
         }
 
-        button:active { opacity: 0.8; }
+        /* ---------- Summary ---------- */
+        .stats {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .stat {
+            flex: 1 1 70px;
+            text-align: center;
+            padding: 6px 4px;
+            border-radius: 6px;
+            background: #f0f4f1;
+            font-size: 0.72rem;
+            color: #555;
+        }
+        .stat b { display: block; font-size: 1.25rem; color: var(--text-main); }
+        .stat.overdue { background: #ffebee; }
+        .stat.overdue b { color: var(--danger); }
+        .stat.soon { background: #fff3e0; }
+        .stat.soon b { color: var(--soon); }
 
+        .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+        .chip {
+            width: auto;
+            text-align: left;
+            border: 1px solid var(--border);
+            background: #fff;
+            color: var(--text-main);
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 0.85rem;
+            line-height: 1.25;
+        }
+        .chip small { display: block; font-size: 0.7rem; color: #555; }
+        .chip.overdue { border-color: var(--overdue-bg); background: #ffebee; }
+        .chip.soon { border-color: var(--warning); background: #fff3e0; }
+        .all-clear { font-size: 0.85rem; color: var(--primary); font-weight: 600; }
+        .not-started { font-size: 0.78rem; color: #666; margin-top: 8px; }
+
+        /* ---------- Controls ---------- */
+        .controls-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--card-bg);
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .controls-bar .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .controls-bar select { width: auto; padding: 6px; }
+
+        .nav-btn {
+            width: auto;
+            background: #e0e0e0;
+            color: #333;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+
+        .interval-toggle {
+            display: flex;
+            align-items: center;
+            background: #e0e0e0;
+            border-radius: 20px;
+            padding: 2px;
+            gap: 2px;
+        }
+
+        .interval-btn {
+            border: none;
+            background: transparent;
+            padding: 6px 12px;
+            border-radius: 18px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #555;
+            transition: all 0.2s ease;
+        }
+
+        .interval-btn.active {
+            background: var(--primary);
+            color: #ffffff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+        }
+        .grid-layout .card { margin-bottom: 0; }
+
+        @media (min-width: 992px) {
+            .grid-layout { grid-template-columns: 280px 1fr; align-items: start; }
+        }
+
+        /* ---------- Table ---------- */
         .table-responsive {
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
@@ -228,23 +293,10 @@
             min-width: 34px;
         }
 
-        th.sunday-col {
-            background-color: var(--sunday-header) !important;
-            color: #ffffff !important;
-        }
-
-        td.sunday-col {
-            background-color: var(--sunday-bg) !important;
-        }
-
-        th.today-col {
-            background-color: var(--today-header) !important;
-            color: #ffffff !important;
-        }
-
-        td.today-col {
-            background-color: var(--today-bg) !important;
-        }
+        th.sunday-col { background-color: var(--sunday-header) !important; color: #ffffff !important; }
+        td.sunday-col { background-color: var(--sunday-bg) !important; }
+        th.today-col  { background-color: var(--today-header) !important; color: #ffffff !important; }
+        td.today-col  { background-color: var(--today-bg) !important; }
 
         .sticky-col {
             position: sticky;
@@ -256,16 +308,15 @@
             padding-left: 6px;
             padding-right: 6px;
         }
+        th.sticky-col { background-color: #f0f4f1 !important; z-index: 3; }
 
-        .sticky-col.overdue-block {
-            background-color: var(--overdue-bg) !important;
-            color: #ffffff !important;
+        .sticky-col .sub {
+            font-size: 0.65rem;
+            font-weight: normal;
+            opacity: 0.9;
         }
-
-        th.sticky-col {
-            background-color: #f0f4f1 !important;
-            z-index: 3;
-        }
+        .sticky-col.st-overdue { background-color: var(--overdue-bg) !important; color: #ffffff !important; }
+        .sticky-col.st-soon    { background-color: var(--soon) !important; color: #ffffff !important; }
 
         .day-cell {
             cursor: pointer;
@@ -275,13 +326,9 @@
             min-width: 34px;
             font-weight: 600;
             font-size: 0.85rem;
-            transition: background-color 0.15s ease;
-            position: relative;
         }
-
-        .day-cell:hover {
-            background-color: #f5f5f5;
-        }
+        .day-cell:hover { background-color: #f5f5f5; }
+        .day-cell.over-num { color: var(--danger); }
 
         .circled-num {
             display: inline-flex;
@@ -297,44 +344,106 @@
 
         .target-day {
             background-color: var(--highlight) !important;
-            border: 2px solid var(--highlight-border) !important;
+            box-shadow: inset 0 0 0 2px var(--highlight-border);
         }
 
         .action-btns {
-            display: flex;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 4px;
-            justify-content: center;
+            width: 150px;
+            margin: 0 auto;
         }
 
-        .btn-edit, .btn-reset, .btn-delete {
-            padding: 4px 6px;
-            font-size: 0.7rem;
+        .btn-act {
+            padding: 5px 6px;
+            font-size: 0.72rem;
             border-radius: 4px;
-            cursor: pointer;
-            width: auto;
             font-weight: bold;
             background-color: transparent;
+            border: 1px solid currentColor;
         }
-
-        .btn-edit {
-            color: var(--warning);
-            border: 1px solid var(--warning);
-        }
-
-        .btn-reset {
-            color: var(--reset-btn);
-            border: 1px solid var(--reset-btn);
-        }
-
-        .btn-delete {
-            color: var(--danger);
-            border: 1px solid var(--danger);
-        }
+        .btn-act:disabled { opacity: 0.5; cursor: default; }
+        .btn-today  { color: #ffffff; background-color: var(--primary); border-color: var(--primary); }
+        .btn-today:disabled { background-color: #e8f5e9; color: var(--primary); }
+        .btn-hist   { color: #1976d2; }
+        .btn-edit   { color: var(--warning); }
+        .btn-delete { color: var(--danger); }
 
         .date-display { font-weight: bold; }
         .next-date-label { font-weight: bold; color: var(--primary); }
-        .btn-cancel { background-color: #757575; margin-top: 6px; }
-        .help-text { font-size: 0.75rem; color: #666; margin-top: 4px; text-align: right; }
+        .empty-row { text-align: center; color: #888; padding: 20px !important; }
+        .help-text { font-size: 0.75rem; color: #666; margin-top: 6px; line-height: 1.5; }
+
+        .sort-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 0.8rem; }
+        .sort-row label { margin: 0; }
+        .sort-row select { width: auto; padding: 4px 6px; font-size: 14px; }
+
+        /* ---------- Modal ---------- */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal {
+            background: #fff;
+            width: 100%;
+            max-width: 460px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border-radius: 12px 12px 0 0;
+            padding: 16px;
+            outline: none;
+        }
+        @media (min-width: 600px) {
+            .modal-backdrop { align-items: center; }
+            .modal { border-radius: 12px; }
+        }
+        .modal h3 { margin: 0 0 4px; color: var(--primary); font-size: 1.1rem; }
+        .modal h4 { margin: 16px 0 6px; font-size: 0.9rem; }
+        .modal-status { font-size: 0.85rem; color: #555; margin-bottom: 12px; }
+        .history-list { list-style: none; padding: 0; margin: 0; max-height: 200px; overflow-y: auto; }
+        .history-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid #eee;
+            font-size: 0.9rem;
+        }
+        .history-list .btn-act { width: auto; padding: 4px 10px; }
+        .history-empty { font-size: 0.85rem; color: #888; }
+
+        /* ---------- Toast ---------- */
+        .toast {
+            position: fixed;
+            left: 50%;
+            bottom: 16px;
+            transform: translateX(-50%);
+            background: #323232;
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            z-index: 1100;
+            max-width: calc(100% - 24px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .toast button {
+            background: none;
+            border: none;
+            color: #90caf9;
+            font-weight: bold;
+            font-size: 0.85rem;
+            padding: 4px;
+        }
     </style>
 </head>
 <body>
@@ -342,32 +451,54 @@
 <div class="container">
     <header>
         <h1>Leepang 2 Estate - Spray Interval Tracker</h1>
-        <div class="sync-badge" id="statusBadge">☁️ Connecting Sync...</div>
+        <div class="sync-badge" id="statusBadge" data-state="warn">☁️ Connecting…</div>
+        <button type="button" class="link-btn" id="signOutBtn" hidden>Sign out</button>
     </header>
+
+    <!-- Shown only when the database requires sign-in -->
+    <div class="card" id="loginCard" hidden>
+        <h2>Sign in</h2>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="loginEmail">Email</label>
+                <input type="email" id="loginEmail" autocomplete="username" required>
+            </div>
+            <div class="form-group">
+                <label for="loginPassword">Password</label>
+                <input type="password" id="loginPassword" autocomplete="current-password" required>
+            </div>
+            <button type="submit" class="btn">Sign in</button>
+            <div class="form-error" id="loginError" role="alert"></div>
+        </form>
+    </div>
+
+    <div class="card" id="summaryCard" hidden>
+        <h2>Needs attention</h2>
+        <div class="stats" id="statsRow"></div>
+        <div id="attentionList"></div>
+        <div class="not-started" id="notStarted"></div>
+    </div>
 
     <div class="controls-bar">
         <div class="control-group">
-            <label for="viewMonth" style="margin:0;"><strong>Month:</strong></label>
-            <select id="viewMonth" onchange="changeViewPeriod()" style="width: 90px; padding: 6px;">
+            <button type="button" class="nav-btn" id="prevMonthBtn" aria-label="Previous month">◀</button>
+            <select id="viewMonth" aria-label="Month">
                 <option value="0">Jan</option><option value="1">Feb</option><option value="2">Mar</option>
                 <option value="3">Apr</option><option value="4">May</option><option value="5">Jun</option>
                 <option value="6">Jul</option><option value="7">Aug</option><option value="8">Sep</option>
                 <option value="9">Oct</option><option value="10">Nov</option><option value="11">Dec</option>
             </select>
-            <select id="viewYear" onchange="changeViewPeriod()" style="width: 80px; padding: 6px;">
-                <option value="2025">2025</option>
-                <option value="2026">2026</option>
-                <option value="2027">2027</option>
-            </select>
+            <select id="viewYear" aria-label="Year"></select>
+            <button type="button" class="nav-btn" id="nextMonthBtn" aria-label="Next month">▶</button>
+            <button type="button" class="nav-btn" id="todayBtn">Today</button>
             <span id="daysCountLabel" style="font-size: 0.8rem; font-weight: bold; color: var(--primary);">31 Days</span>
         </div>
 
         <div class="control-group">
-            <button type="button" class="btn-sync-today" onclick="refreshNumbersToToday()">🔄 Sync to Today</button>
-            
+            <span style="font-size: 0.8rem; font-weight: bold;">Interval:</span>
             <div class="interval-toggle">
-                <button type="button" class="interval-btn" id="btnInterval30" onclick="setIntervalDays(30)">30 Days</button>
-                <button type="button" class="interval-btn active" id="btnInterval45" onclick="setIntervalDays(45)">45 Days</button>
+                <button type="button" class="interval-btn" id="btnInterval30">30 Days</button>
+                <button type="button" class="interval-btn" id="btnInterval45">45 Days</button>
             </div>
         </div>
     </div>
@@ -379,23 +510,31 @@
                 <input type="hidden" id="editKey" value="">
                 <div class="form-group">
                     <label for="block">Field / Block Name</label>
-                    <input type="text" id="block" placeholder="e.g., 25B - 96L" required>
+                    <input type="text" id="block" placeholder="e.g., 25B - 96L" required maxlength="60">
                 </div>
                 <div class="form-group">
                     <label for="sprayType">Type of Spray</label>
                     <select id="sprayType" required>
-                        <option value="Circle & Path Spray" selected>Circle & Path Spray</option>
+                        <option value="Circle & Path Spray" selected>Circle &amp; Path Spray</option>
                         <option value="Selective Spray">Selective Spray</option>
                     </select>
                 </div>
-                <button type="submit" id="submitBtn">Add Program</button>
-                <button type="button" id="cancelBtn" class="btn-cancel" style="display: none;" onclick="resetForm()">Cancel Edit</button>
+                <button type="submit" class="btn" id="submitBtn">Add Program</button>
+                <button type="button" class="btn btn-cancel" id="cancelBtn" hidden>Cancel Edit</button>
+                <div class="form-error" id="formError" role="alert"></div>
             </form>
         </div>
 
-        <div class="card" style="padding: 6px;">
+        <div class="card" style="padding: 8px;">
             <h2>Daily Checklist Matrix</h2>
-            <div class="table-responsive">
+            <div class="sort-row">
+                <label for="sortMode">Sort rows by</label>
+                <select id="sortMode">
+                    <option value="block">Block name</option>
+                    <option value="urgent">Most urgent first</option>
+                </select>
+            </div>
+            <div class="table-responsive" id="tableWrap">
                 <table>
                     <thead>
                         <tr id="tableHeaderRow"></tr>
@@ -403,12 +542,36 @@
                     <tbody id="sprayTableBody"></tbody>
                 </table>
             </div>
-            <div class="help-text" id="helpTextLabel">💡 <strong>Red Block Name:</strong> Overdue (>45 Days). | <strong>Blue Column:</strong> Today. | <strong>Red Columns:</strong> Sunday. | <strong>Click:</strong> Start Sequence.</div>
+            <div class="help-text" id="helpTextLabel"></div>
         </div>
     </div>
 </div>
 
+<!-- Spray dates dialog -->
+<div class="modal-backdrop" id="modalBackdrop" hidden>
+    <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1">
+        <h3 id="modalTitle"></h3>
+        <div class="modal-status" id="modalStatus"></div>
+        <div class="form-group">
+            <label for="modalDate">Spray date</label>
+            <input type="date" id="modalDate">
+        </div>
+        <button type="button" class="btn" id="modalAddBtn">Record spray</button>
+        <h4>Spray history</h4>
+        <ul class="history-list" id="modalHistory"></ul>
+        <button type="button" class="btn btn-cancel" id="modalCloseBtn">Close</button>
+    </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden>
+    <span id="toastMsg"></span>
+    <button type="button" id="toastUndo">Undo</button>
+</div>
+
 <script>
+(function () {
+    'use strict';
+
     const firebaseConfig = {
         apiKey: "AIzaSyAXtaO7IVfKzRXs91hC0IB6RhEReJQXBH0",
         authDomain: "interval-monitor.firebaseapp.com",
@@ -419,476 +582,751 @@
         appId: "1:499193320194:web:30f35ac029d64c74c0281b"
     };
 
-    let db = null;
-    let recordsMap = {};
-    let isCloudActive = false;
+    const SOON_DAYS = 7;
+    const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const LS_RECORDS = 'sprayLocalRecords';
+    const LS_INTERVAL = 'sprayIntervalDays';
+    const LS_SORT = 'spraySortMode';
 
-    try {
-        firebase.initializeApp(firebaseConfig);
-        db = firebase.database().ref('spray_tracker_records');
-        
-        db.on('value', (snapshot) => {
-            recordsMap = snapshot.val() || {};
-            isCloudActive = true;
-            document.getElementById('statusBadge').innerText = "☁️ Live Multi-Device Sync Active";
-            renderTable();
-        }, () => {
-            enableLocalStorageFallback();
-        });
-    } catch(e) {
-        enableLocalStorageFallback();
+    // ---------- DOM ----------
+    const $ = id => document.getElementById(id);
+    const statusBadge = $('statusBadge');
+    const signOutBtn = $('signOutBtn');
+    const loginCard = $('loginCard');
+    const loginForm = $('loginForm');
+    const loginError = $('loginError');
+    const summaryCard = $('summaryCard');
+    const statsRow = $('statsRow');
+    const attentionList = $('attentionList');
+    const notStarted = $('notStarted');
+    const viewMonthSelect = $('viewMonth');
+    const viewYearSelect = $('viewYear');
+    const daysCountLabel = $('daysCountLabel');
+    const form = $('sprayForm');
+    const formTitle = $('formTitle');
+    const formError = $('formError');
+    const submitBtn = $('submitBtn');
+    const cancelBtn = $('cancelBtn');
+    const editKeyInput = $('editKey');
+    const blockInput = $('block');
+    const sprayTypeSelect = $('sprayType');
+    const sortSelect = $('sortMode');
+    const tableWrap = $('tableWrap');
+    const tableBody = $('sprayTableBody');
+    const tableHeaderRow = $('tableHeaderRow');
+    const helpText = $('helpTextLabel');
+    const modalBackdrop = $('modalBackdrop');
+    const modal = $('modal');
+    const modalTitle = $('modalTitle');
+    const modalStatus = $('modalStatus');
+    const modalDate = $('modalDate');
+    const modalAddBtn = $('modalAddBtn');
+    const modalHistory = $('modalHistory');
+    const toast = $('toast');
+    const toastMsg = $('toastMsg');
+    const toastUndo = $('toastUndo');
+
+    // ---------- Safe helpers ----------
+    function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+    function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage unavailable */ } }
+
+    function esc(v) {
+        return String(v == null ? '' : v)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
-    function enableLocalStorageFallback() {
-        isCloudActive = false;
-        document.getElementById('statusBadge').innerText = "💾 Local Offline Mode";
-        recordsMap = JSON.parse(localStorage.getItem('sprayLocalRecords')) || {};
-        renderTable();
-    }
-
-    function saveLocal() {
-        if (!isCloudActive) {
-            localStorage.setItem('sprayLocalRecords', JSON.stringify(recordsMap));
-        }
-    }
-
-    const form = document.getElementById('sprayForm');
-    const formTitle = document.getElementById('formTitle');
-    const submitBtn = document.getElementById('submitBtn');
-    const cancelBtn = document.getElementById('cancelBtn');
-    const editKeyInput = document.getElementById('editKey');
-    const tableBody = document.getElementById('sprayTableBody');
-    const tableHeaderRow = document.getElementById('tableHeaderRow');
-    const viewMonthSelect = document.getElementById('viewMonth');
-    const viewYearSelect = document.getElementById('viewYear');
-    const daysCountLabel = document.getElementById('daysCountLabel');
-
-    let targetIntervalDays = 45;
-
-    function getTodayLocalDate() {
+    // ---------- Date helpers (all local time) ----------
+    function todayDate() {
         const d = new Date();
         return new Date(d.getFullYear(), d.getMonth(), d.getDate());
     }
+    function toKey(d) {
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+    function parseKey(k) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(k || '');
+        return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+    }
+    function daysBetween(a, b) { return Math.round((b - a) / 86400000); }
+    function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+    function fmtShort(d) { return d.getDate() + ' ' + MONTHS[d.getMonth()]; }
+    function fmtLong(d) { return d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear(); }
 
-    function parseLocalDateKey(dateKeyStr) {
-        if (!dateKeyStr) return null;
-        const parts = dateKeyStr.split('-');
-        return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    // ---------- State ----------
+    let cloudMode = false;
+    let db = null;
+    let auth = null;
+    let recordsMap = {};
+    const net = { local: false, connected: false, gotData: false, needsLogin: false, syncError: false };
+
+    let targetIntervalDays = (parseInt(lsGet(LS_INTERVAL), 10) === 30) ? 30 : 45;
+    let sortMode = (lsGet(LS_SORT) === 'urgent') ? 'urgent' : 'block';
+    let viewMonth = todayDate().getMonth();
+    let viewYear = todayDate().getFullYear();
+    let modalKey = null;
+    let toastTimer = null;
+    let toastUndoFn = null;
+    let scrollToTodayPending = true;
+    let lastRenderedDay = '';
+
+    // ---------- Sync status ----------
+    function updateBadge() {
+        let state, text;
+        if (net.local) {
+            state = 'warn'; text = '💾 Local only — not synced';
+        } else if (net.needsLogin) {
+            state = 'err'; text = '🔒 Sign in required';
+        } else if (net.syncError) {
+            state = 'err'; text = '⚠️ Sync error — data may be out of date';
+        } else if (!net.connected) {
+            state = 'warn';
+            text = net.gotData ? '📴 Offline — changes will sync when back online' : '☁️ Connecting…';
+        } else {
+            state = 'ok'; text = '☁️ Live Multi-Device Sync Active';
+        }
+        statusBadge.dataset.state = state;
+        statusBadge.textContent = text;
     }
 
-    let realToday = getTodayLocalDate();
-    let currentMonth = realToday.getMonth();
-    let currentYear = realToday.getFullYear();
+    function isPermissionError(err) {
+        return !!err && (err.code === 'PERMISSION_DENIED' || /permission[_ ]denied/i.test(err.message || ''));
+    }
 
-    viewMonthSelect.value = currentMonth;
-    viewYearSelect.value = currentYear;
+    function handleWriteError(err) {
+        console.error(err);
+        showToast(isPermissionError(err)
+            ? '⚠️ Not saved — sign in required.'
+            : '⚠️ Not saved — check your connection.', null);
+    }
+
+    // ---------- Spray data model ----------
+    // New format: record.sprays = { "YYYY-MM-DD": true, ... }
+    // Old records (dailyDays / circledDays) are read once and converted the
+    // first time a spray is added or removed. Nothing is deleted before that.
+    function legacyStartKey(record) {
+        const pick = obj => {
+            if (!obj || typeof obj !== 'object') return null;
+            const keys = Object.keys(obj).filter(k =>
+                parseKey(k) && obj[k] !== null && obj[k] !== undefined && obj[k] !== '' && obj[k] !== false);
+            keys.sort();
+            return keys[0] || null;
+        };
+        return pick(record.circledDays) || pick(record.dailyDays);
+    }
+
+    function getSprayObj(record) {
+        if (record.sprays && typeof record.sprays === 'object') return Object.assign({}, record.sprays);
+        const start = legacyStartKey(record);
+        return start ? { [start]: true } : {};
+    }
+
+    function getSprayKeys(record) {
+        return Object.keys(getSprayObj(record)).filter(k => parseKey(k)).sort();
+    }
+
+    function computeStatus(record, today) {
+        const keys = getSprayKeys(record);
+        if (!keys.length) {
+            return { state: 'none', keys: keys, last: null, next: null, daysToNext: null };
+        }
+        const last = parseKey(keys[keys.length - 1]);
+        const next = addDays(last, targetIntervalDays);
+        const daysToNext = daysBetween(today, next);
+        let state = 'ok';
+        if (daysToNext <= 0) state = 'overdue';
+        else if (daysToNext <= SOON_DAYS) state = 'soon';
+        return { state: state, keys: keys, last: last, next: next, daysToNext: daysToNext };
+    }
+
+    function statusText(st) {
+        if (st.state === 'none') return 'No spray recorded';
+        const d = st.daysToNext;
+        if (d < 0) return (-d) + (d === -1 ? ' day overdue' : ' days overdue');
+        if (d === 0) return 'Due today';
+        if (d === 1) return 'Due tomorrow';
+        return 'Due in ' + d + ' days';
+    }
+
+    function typeShort(record) {
+        return record.sprayType === 'Circle & Path Spray' ? 'Circle/Path' : 'Selective';
+    }
+
+    function blockName(record) { return record.block || '(unnamed)'; }
+
+    // ---------- Storage layer (cloud or local fallback) ----------
+    function saveLocal() {
+        if (!cloudMode) lsSet(LS_RECORDS, JSON.stringify(recordsMap));
+    }
+
+    function writeSprays(key, sprayObj) {
+        const has = Object.keys(sprayObj).length > 0;
+        if (cloudMode) {
+            db.child(key).update({
+                sprays: has ? sprayObj : null,
+                dailyDays: null,
+                circledDays: null
+            }).catch(handleWriteError);
+        } else {
+            const rec = recordsMap[key];
+            if (!rec) return;
+            if (has) rec.sprays = sprayObj; else delete rec.sprays;
+            delete rec.dailyDays;
+            delete rec.circledDays;
+            saveLocal();
+            render();
+        }
+    }
+
+    function changeSprays(key, mutate, message) {
+        const record = recordsMap[key];
+        if (!record) return;
+        const before = getSprayObj(record);
+        const after = mutate(Object.assign({}, before));
+        writeSprays(key, after);
+        showToast(message, function () { writeSprays(key, before); });
+    }
+
+    function sprayOn(key, dateKey) {
+        const record = recordsMap[key];
+        if (!record) return;
+        const label = dateKey === toKey(todayDate()) ? 'today' : fmtShort(parseKey(dateKey));
+        changeSprays(key, s => { s[dateKey] = true; return s; },
+            'Spray recorded: ' + blockName(record) + ' (' + label + ')');
+    }
+
+    function createRecord(block, type) {
+        if (cloudMode) {
+            db.push({ block: block, sprayType: type }).catch(handleWriteError);
+        } else {
+            recordsMap['rec_' + Date.now()] = { block: block, sprayType: type };
+            saveLocal();
+            render();
+        }
+    }
+
+    function updateRecord(key, block, type) {
+        if (cloudMode) {
+            db.child(key).update({ block: block, sprayType: type }).catch(handleWriteError);
+        } else if (recordsMap[key]) {
+            recordsMap[key].block = block;
+            recordsMap[key].sprayType = type;
+            saveLocal();
+            render();
+        }
+    }
+
+    function removeRecord(key) {
+        if (cloudMode) {
+            db.child(key).remove().catch(handleWriteError);
+        } else {
+            delete recordsMap[key];
+            saveLocal();
+            render();
+        }
+    }
+
+    // ---------- Firebase wiring ----------
+    function enableLocalMode() {
+        cloudMode = false;
+        net.local = true;
+        try { recordsMap = JSON.parse(lsGet(LS_RECORDS)) || {}; } catch (e) { recordsMap = {}; }
+        updateBadge();
+        render();
+    }
+
+    function attachListener() {
+        if (!db) return;
+        db.off('value');
+        db.on('value', function (snapshot) {
+            recordsMap = snapshot.val() || {};
+            net.gotData = true;
+            net.needsLogin = false;
+            net.syncError = false;
+            loginCard.hidden = true;
+            updateBadge();
+            render();
+        }, function (err) {
+            console.error(err);
+            recordsMap = {};
+            if (isPermissionError(err)) {
+                net.needsLogin = true;
+                loginCard.hidden = false;
+            } else {
+                net.syncError = true;
+            }
+            updateBadge();
+            render();
+        });
+    }
+
+    function initCloud() {
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.database().ref('spray_tracker_records');
+            cloudMode = true;
+
+            firebase.database().ref('.info/connected').on('value', function (snap) {
+                net.connected = snap.val() === true;
+                updateBadge();
+            });
+
+            try { auth = firebase.auth(); } catch (e) { auth = null; }
+            if (auth) {
+                auth.onAuthStateChanged(function (user) {
+                    signOutBtn.hidden = !user;
+                    attachListener();
+                });
+            } else {
+                attachListener();
+            }
+        } catch (e) {
+            console.error(e);
+            enableLocalMode();
+        }
+    }
+
+    function friendlyAuthError(err) {
+        switch (err && err.code) {
+            case 'auth/invalid-credential':
+            case 'auth/wrong-password':
+            case 'auth/user-not-found':
+            case 'auth/invalid-email':
+                return 'Wrong email or password.';
+            case 'auth/too-many-requests':
+                return 'Too many attempts. Wait a few minutes and try again.';
+            case 'auth/network-request-failed':
+                return 'No connection. Check your internet and try again.';
+            case 'auth/operation-not-allowed':
+                return 'Email/password sign-in is not turned on in Firebase yet.';
+            default:
+                return 'Sign-in failed. Try again.';
+        }
+    }
+
+    loginForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!auth) return;
+        loginError.textContent = '';
+        auth.signInWithEmailAndPassword($('loginEmail').value.trim(), $('loginPassword').value)
+            .then(function () { $('loginPassword').value = ''; })
+            .catch(function (err) { loginError.textContent = friendlyAuthError(err); });
+    });
+
+    signOutBtn.addEventListener('click', function () {
+        if (auth) auth.signOut();
+    });
+
+    // ---------- Controls ----------
+    function fillYearOptions() {
+        const thisYear = todayDate().getFullYear();
+        const from = Math.min(thisYear - 2, viewYear);
+        const to = Math.max(thisYear + 2, viewYear);
+        let html = '';
+        for (let y = from; y <= to; y++) html += '<option value="' + y + '">' + y + '</option>';
+        viewYearSelect.innerHTML = html;
+        viewYearSelect.value = String(viewYear);
+    }
+
+    function syncPeriodControls() {
+        viewMonthSelect.value = String(viewMonth);
+        fillYearOptions();
+    }
+
+    function changePeriod() {
+        viewMonth = parseInt(viewMonthSelect.value, 10);
+        viewYear = parseInt(viewYearSelect.value, 10);
+        fillYearOptions();
+        render();
+    }
+
+    function shiftMonth(delta) {
+        viewMonth += delta;
+        if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+        if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+        syncPeriodControls();
+        render();
+    }
+
+    viewMonthSelect.addEventListener('change', changePeriod);
+    viewYearSelect.addEventListener('change', changePeriod);
+    $('prevMonthBtn').addEventListener('click', function () { shiftMonth(-1); });
+    $('nextMonthBtn').addEventListener('click', function () { shiftMonth(1); });
+    $('todayBtn').addEventListener('click', function () {
+        const t = todayDate();
+        viewMonth = t.getMonth();
+        viewYear = t.getFullYear();
+        scrollToTodayPending = true;
+        syncPeriodControls();
+        render();
+    });
 
     function setIntervalDays(days) {
         targetIntervalDays = days;
-        document.getElementById('btnInterval30').classList.toggle('active', days === 30);
-        document.getElementById('btnInterval45').classList.toggle('active', days === 45);
-        document.getElementById('helpTextLabel').innerHTML = `💡 <strong>Red Block Name:</strong> Overdue (>${days} Days). | <strong>Blue Column:</strong> Today. | <strong>Red Columns:</strong> Sunday. | <strong>Click:</strong> Start Sequence.`;
-        renderTable();
+        lsSet(LS_INTERVAL, String(days));
+        $('btnInterval30').classList.toggle('active', days === 30);
+        $('btnInterval45').classList.toggle('active', days === 45);
+        helpText.innerHTML =
+            'Tap a day to record or remove a spray. ' +
+            '<strong>Red block</strong>: overdue (' + days + ' days reached). ' +
+            '<strong>Orange block</strong>: due within ' + SOON_DAYS + ' days. ' +
+            '<strong>Circled 1</strong>: spray day. ' +
+            '<strong>Green outline</strong>: next due date. ' +
+            '<strong>Blue column</strong>: today. <strong>Red column</strong>: Sunday. ' +
+            'Red numbers: days past the interval.';
+        render();
+    }
+    $('btnInterval30').addEventListener('click', function () { setIntervalDays(30); });
+    $('btnInterval45').addEventListener('click', function () { setIntervalDays(45); });
+
+    sortSelect.value = sortMode;
+    sortSelect.addEventListener('change', function () {
+        sortMode = sortSelect.value === 'urgent' ? 'urgent' : 'block';
+        lsSet(LS_SORT, sortMode);
+        render();
+    });
+
+    // ---------- Rendering ----------
+    function buildEntries(today) {
+        return Object.keys(recordsMap)
+            .filter(function (k) { return recordsMap[k] && typeof recordsMap[k] === 'object'; })
+            .map(function (k) {
+                const record = recordsMap[k];
+                return { key: k, record: record, st: computeStatus(record, today) };
+            });
     }
 
-    function getRedCircledStartDate(record) {
-        if (!record) return null;
-        
-        if (record.circledDays) {
-            const circledDates = Object.keys(record.circledDays).filter(k => record.circledDays[k] === true);
-            if (circledDates.length > 0) {
-                circledDates.sort((a, b) => new Date(a) - new Date(b));
-                return circledDates[0];
-            }
+    function sortEntries(entries) {
+        const byBlock = function (a, b) {
+            return String(blockName(a.record)).localeCompare(String(blockName(b.record)), undefined,
+                { numeric: true, sensitivity: 'base' });
+        };
+        if (sortMode === 'urgent') {
+            return entries.sort(function (a, b) {
+                const da = a.st.daysToNext === null ? Infinity : a.st.daysToNext;
+                const db2 = b.st.daysToNext === null ? Infinity : b.st.daysToNext;
+                if (da !== db2) return da < db2 ? -1 : 1;
+                return byBlock(a, b);
+            });
         }
-        
-        if (record.dailyDays) {
-            const recordedDates = Object.keys(record.dailyDays).filter(k => record.dailyDays[k] !== null && record.dailyDays[k] !== undefined);
-            if (recordedDates.length > 0) {
-                recordedDates.sort((a, b) => new Date(a) - new Date(b));
-                return recordedDates[0];
-            }
+        return entries.sort(byBlock);
+    }
+
+    function renderSummary(entries) {
+        summaryCard.hidden = entries.length === 0;
+        if (!entries.length) return;
+
+        const c = { overdue: 0, soon: 0, ok: 0, none: 0 };
+        entries.forEach(function (e) { c[e.st.state]++; });
+
+        statsRow.innerHTML =
+            '<div class="stat overdue"><b>' + c.overdue + '</b>Overdue</div>' +
+            '<div class="stat soon"><b>' + c.soon + '</b>Due in ' + SOON_DAYS + ' days</div>' +
+            '<div class="stat"><b>' + c.ok + '</b>On track</div>' +
+            '<div class="stat"><b>' + c.none + '</b>Not started</div>';
+
+        const attention = entries
+            .filter(function (e) { return e.st.state === 'overdue' || e.st.state === 'soon'; })
+            .sort(function (a, b) { return a.st.daysToNext - b.st.daysToNext; });
+
+        if (attention.length) {
+            attentionList.innerHTML = '<div class="chips">' + attention.map(function (e) {
+                return '<button type="button" class="chip ' + e.st.state + '" data-key="' + esc(e.key) + '">' +
+                    '<strong>' + esc(blockName(e.record)) + '</strong>' +
+                    '<small>' + esc(typeShort(e.record)) + ' · ' + esc(statusText(e.st)) + '</small></button>';
+            }).join('') + '</div>';
+        } else {
+            attentionList.innerHTML = '<div class="all-clear">✅ Nothing overdue or due within ' + SOON_DAYS + ' days.</div>';
         }
-        return null;
+
+        const none = entries.filter(function (e) { return e.st.state === 'none'; });
+        notStarted.innerHTML = none.length
+            ? 'No spray recorded yet: ' + none.map(function (e) { return '<b>' + esc(blockName(e.record)) + '</b>'; }).join(', ')
+            : '';
     }
 
-    function calculateNextDate(startDateStr) {
-        if (!startDateStr) return null;
-        const d = parseLocalDateKey(startDateStr);
-        d.setDate(d.getDate() + targetIntervalDays);
-        return d;
-    }
+    function renderTable(entries, today) {
+        const totalDays = new Date(viewYear, viewMonth + 1, 0).getDate();
+        daysCountLabel.textContent = totalDays + ' Days';
 
-    function formatDateShort(dateStrOrObj) {
-        if (!dateStrOrObj) return '-';
-        const d = (typeof dateStrOrObj === 'string') ? parseLocalDateKey(dateStrOrObj) : new Date(dateStrOrObj);
-        if (!d || isNaN(d)) return '-';
-        return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`;
-    }
+        const todayKey = toKey(today);
+        const viewingThisMonth = viewMonth === today.getMonth() && viewYear === today.getFullYear();
+        const todayNum = viewingThisMonth ? today.getDate() : null;
 
-    function getDaysInMonth(month, year) {
-        return new Date(year, month + 1, 0).getDate();
-    }
-
-    function getDateKey(year, month, day) {
-        const m = String(month + 1).padStart(2, '0');
-        const d = String(day).padStart(2, '0');
-        return `${year}-${m}-${d}`;
-    }
-
-    function changeViewPeriod() {
-        currentMonth = parseInt(viewMonthSelect.value);
-        currentYear = parseInt(viewYearSelect.value);
-        renderTable();
-    }
-
-    function refreshNumbersToToday() {
-        realToday = getTodayLocalDate();
-        const keys = Object.keys(recordsMap);
-
-        keys.forEach(key => {
-            const record = recordsMap[key];
-            const startDateStr = getRedCircledStartDate(record);
-            if (!startDateStr) return;
-
-            let currDate = parseLocalDateKey(startDateStr);
-            let updatesDaily = {};
-            let currentDayNum = 1;
-
-            while (currDate.getTime() <= realToday.getTime()) {
-                let y = currDate.getFullYear();
-                let m = String(currDate.getMonth() + 1).padStart(2, '0');
-                let d = String(currDate.getDate()).padStart(2, '0');
-                let keyStr = `${y}-${m}-${d}`;
-
-                updatesDaily[keyStr] = currentDayNum;
-                currDate.setDate(currDate.getDate() + 1);
-                currentDayNum++;
-            }
-
-            if (isCloudActive) {
-                db.child(key).child('dailyDays').update(updatesDaily);
-            } else {
-                if (!record.dailyDays) record.dailyDays = {};
-                Object.assign(record.dailyDays, updatesDaily);
-            }
-        });
-
-        if (!isCloudActive) saveLocal();
-        renderTable();
-    }
-
-    function renderTable() {
-        realToday = getTodayLocalDate();
-        const totalDays = getDaysInMonth(currentMonth, currentYear);
-        daysCountLabel.innerText = `${totalDays} Days`;
-
-        let headerHTML = `
-            <th class="sticky-col">Block</th>
-            <th>Type</th>
-            <th>Start Date</th>
-            <th>Next (+${targetIntervalDays}d)</th>
-        `;
-
-        const isCurrentViewRealPeriod = (currentMonth === realToday.getMonth() && currentYear === realToday.getFullYear());
-        const realTodayDateNumber = isCurrentViewRealPeriod ? realToday.getDate() : null;
-
+        let head = '<th class="sticky-col">Block</th><th>Type</th><th>Last spray</th>' +
+                   '<th>Next (+' + targetIntervalDays + 'd)</th>';
         for (let day = 1; day <= totalDays; day++) {
-            const dateObj = new Date(currentYear, currentMonth, day);
-            const isSunday = (dateObj.getDay() === 0);
-            const isToday = (day === realTodayDateNumber);
-
-            let colClass = '';
-            if (isToday) {
-                colClass = 'today-col';
-            } else if (isSunday) {
-                colClass = 'sunday-col';
-            }
-
-            headerHTML += `<th class="${colClass}">${day}</th>`;
+            const isSunday = new Date(viewYear, viewMonth, day).getDay() === 0;
+            const cls = day === todayNum ? 'today-col' : (isSunday ? 'sunday-col' : '');
+            head += '<th class="' + cls + '">' + day + '</th>';
         }
+        head += '<th>Action</th>';
+        tableHeaderRow.innerHTML = head;
 
-        headerHTML += `<th>Action</th>`;
-        tableHeaderRow.innerHTML = headerHTML;
-
-        tableBody.innerHTML = '';
-        
-        const keys = Object.keys(recordsMap);
-        if (keys.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="${totalDays + 5}" style="text-align:center; color:#888; padding: 20px;">No programs added yet.</td></tr>`;
+        if (!entries.length) {
+            let msg = 'No programs added yet.';
+            if (net.needsLogin) msg = 'Sign in to view the spray programs.';
+            else if (cloudMode && !net.gotData && !net.syncError) msg = 'Loading…';
+            tableBody.innerHTML = '<tr><td colspan="' + (totalDays + 5) + '" class="empty-row">' + msg + '</td></tr>';
             return;
         }
 
-        const realTodayKey = getDateKey(realToday.getFullYear(), realToday.getMonth(), realToday.getDate());
+        let rows = '';
+        entries.forEach(function (e) {
+            const st = e.st;
+            const keys = st.keys;
+            const nextDay = (st.next && st.next.getMonth() === viewMonth && st.next.getFullYear() === viewYear)
+                ? st.next.getDate() : null;
+            const sprayedToday = keys.indexOf(todayKey) !== -1;
+            const safeKey = esc(e.key);
 
-        keys.forEach((key) => {
-            const record = recordsMap[key];
-            const circledStartDateStr = getRedCircledStartDate(record);
-            const nextDateObj = calculateNextDate(circledStartDateStr);
-            
-            const isTargetInCurrentMonth = nextDateObj && 
-                nextDateObj.getMonth() === currentMonth && 
-                nextDateObj.getFullYear() === currentYear;
-            
-            const targetDayNumber = isTargetInCurrentMonth ? nextDateObj.getDate() : null;
-
-            const currentDayNumberToday = (record.dailyDays && record.dailyDays[realTodayKey]) ? record.dailyDays[realTodayKey] : 0;
-            const isOverdue = currentDayNumberToday > targetIntervalDays;
-
-            let dayCells = '';
+            let cells = '';
+            let idx = -1;
             for (let day = 1; day <= totalDays; day++) {
-                const dateKey = getDateKey(currentYear, currentMonth, day);
-                const dateObj = new Date(currentYear, currentMonth, day);
-                const isSunday = (dateObj.getDay() === 0);
-                const isToday = (day === realTodayDateNumber);
+                const dateKey = toKey(new Date(viewYear, viewMonth, day));
+                while (idx + 1 < keys.length && keys[idx + 1] <= dateKey) idx++;
 
-                let colClass = '';
-                if (isToday) {
-                    colClass = 'today-col';
-                } else if (isSunday) {
-                    colClass = 'sunday-col';
+                const isSunday = new Date(viewYear, viewMonth, day).getDay() === 0;
+                let cls = 'day-cell';
+                if (day === todayNum) cls += ' today-col';
+                else if (isSunday) cls += ' sunday-col';
+                if (day === nextDay) cls += ' target-day';
+
+                let content = '';
+                if (idx >= 0) {
+                    const n = daysBetween(parseKey(keys[idx]), parseKey(dateKey)) + 1;
+                    if (dateKey <= todayKey || n <= targetIntervalDays) {
+                        if (keys[idx] === dateKey) {
+                            content = '<span class="circled-num">' + n + '</span>';
+                        } else {
+                            content = String(n);
+                            if (n > targetIntervalDays) cls += ' over-num';
+                        }
+                    }
                 }
-
-                const dayVal = record.dailyDays && record.dailyDays[dateKey] !== undefined ? record.dailyDays[dateKey] : '';
-                const isCircle = record.circledDays && record.circledDays[dateKey];
-                const isHighlight = (day === targetDayNumber) ? 'target-day' : '';
-
-                let displayVal = dayVal;
-                if (dayVal !== '' && isCircle) {
-                    displayVal = `<span class="circled-num">${displayVal}</span>`;
-                }
-
-                dayCells += `
-                    <td class="day-cell ${colClass} ${isHighlight}" 
-                        onmousedown="handlePressStart(this, '${key}', '${dateKey}')"
-                        onmouseup="handlePressEnd(event)"
-                        onmouseleave="handlePressCancel(event)"
-                        ontouchstart="handlePressStart(this, '${key}', '${dateKey}')"
-                        ontouchend="handlePressEnd(event)"
-                        ontouchcancel="handlePressCancel(event)"
-                        oncontextmenu="handleCellRightClick(event, '${key}', '${dateKey}')">
-                        ${displayVal}
-                    </td>
-                `;
+                cells += '<td class="' + cls + '" data-key="' + safeKey + '" data-date="' + dateKey + '">' + content + '</td>';
             }
 
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td class="sticky-col ${isOverdue ? 'overdue-block' : ''}"><strong>${record.block}</strong></td>
-                <td>${record.sprayType === 'Circle & Path Spray' ? 'Circle/Path' : 'Selective'}</td>
-                <td class="date-display">${formatDateShort(circledStartDateStr)}</td>
-                <td class="next-date-label">${formatDateShort(nextDateObj)}</td>
-                ${dayCells}
-                <td>
-                    <div class="action-btns">
-                        <button class="btn-edit" onclick="editRecord('${key}')">Edit</button>
-                        <button class="btn-reset" onclick="resetBlockSequence('${key}')">Reset</button>
-                        <button class="btn-delete" onclick="deleteRecord('${key}')">Del</button>
-                    </div>
-                </td>
-            `;
-            tableBody.appendChild(row);
+            rows +=
+                '<tr>' +
+                '<td class="sticky-col st-' + st.state + '"><strong>' + esc(blockName(e.record)) + '</strong>' +
+                    '<div class="sub">' + esc(statusText(st)) + '</div></td>' +
+                '<td>' + esc(typeShort(e.record)) + '</td>' +
+                '<td class="date-display">' + (st.last ? fmtShort(st.last) : '-') + '</td>' +
+                '<td class="next-date-label">' + (st.next ? fmtShort(st.next) : '-') + '</td>' +
+                cells +
+                '<td><div class="action-btns">' +
+                    '<button type="button" class="btn-act btn-today" data-act="today" data-key="' + safeKey + '"' +
+                        (sprayedToday ? ' disabled' : '') + '>' + (sprayedToday ? '✔ Done' : '✔ Today') + '</button>' +
+                    '<button type="button" class="btn-act btn-hist" data-act="history" data-key="' + safeKey + '">History</button>' +
+                    '<button type="button" class="btn-act btn-edit" data-act="edit" data-key="' + safeKey + '">Edit</button>' +
+                    '<button type="button" class="btn-act btn-delete" data-act="delete" data-key="' + safeKey + '">Del</button>' +
+                '</div></td>' +
+                '</tr>';
         });
-    }
+        tableBody.innerHTML = rows;
 
-    let pressTimer = null;
-    let isLongPress = false;
-
-    function handlePressStart(cellElem, key, dateKey) {
-        isLongPress = false;
-        pressTimer = setTimeout(() => {
-            isLongPress = true;
-            toggleRedCircle(key, dateKey);
-        }, 500);
-        
-        cellElem.dataset.pendingKey = key;
-        cellElem.dataset.pendingDateKey = dateKey;
-    }
-
-    function handlePressEnd(event) {
-        const cellElem = event.currentTarget;
-        clearTimeout(pressTimer);
-        
-        if (!isLongPress && cellElem && cellElem.dataset.pendingKey) {
-            autoApplyStartOne(
-                cellElem.dataset.pendingKey, 
-                cellElem.dataset.pendingDateKey
-            );
-        }
-        resetPressData(cellElem);
-    }
-
-    function handlePressCancel(event) {
-        clearTimeout(pressTimer);
-        resetPressData(event.currentTarget);
-    }
-
-    function resetPressData(elem) {
-        if (elem && elem.dataset) {
-            delete elem.dataset.pendingKey;
-            delete elem.dataset.pendingDateKey;
+        if (scrollToTodayPending && viewingThisMonth) {
+            scrollToTodayPending = false;
+            const th = tableHeaderRow.querySelector('th.today-col');
+            if (th) tableWrap.scrollLeft = Math.max(0, th.offsetLeft - tableWrap.clientWidth / 2);
         }
     }
 
-    function toggleRedCircle(key, dateKey) {
-        const record = recordsMap[key];
-        if (!record.dailyDays || record.dailyDays[dateKey] === undefined || record.dailyDays[dateKey] === '') return;
+    function render() {
+        const today = todayDate();
+        lastRenderedDay = toKey(today);
+        const entries = buildEntries(today);
+        renderSummary(entries);
+        renderTable(sortEntries(entries.slice()), today);
+        if (modalKey) renderModal();
+    }
 
-        if (!record.circledDays) record.circledDays = {};
-        const isCircled = !record.circledDays[dateKey];
+    // ---------- Table + summary clicks ----------
+    tableBody.addEventListener('click', function (e) {
+        const btn = e.target.closest('button[data-act]');
+        if (btn) {
+            const key = btn.dataset.key;
+            switch (btn.dataset.act) {
+                case 'today':   sprayOn(key, toKey(todayDate())); break;
+                case 'history': openModal(key, toKey(todayDate())); break;
+                case 'edit':    editRecord(key); break;
+                case 'delete':  deleteRecord(key); break;
+            }
+            return;
+        }
+        const cell = e.target.closest('td.day-cell');
+        if (cell) openModal(cell.dataset.key, cell.dataset.date);
+    });
 
-        if (isCloudActive) {
-            db.child(key).child('circledDays').child(dateKey).set(isCircled);
+    attentionList.addEventListener('click', function (e) {
+        const chip = e.target.closest('.chip');
+        if (chip) openModal(chip.dataset.key, toKey(todayDate()));
+    });
+
+    // ---------- Spray dates dialog ----------
+    function openModal(key, dateKey) {
+        if (!recordsMap[key]) return;
+        modalKey = key;
+        modalDate.max = toKey(todayDate());
+        modalDate.value = dateKey || toKey(todayDate());
+        modalBackdrop.hidden = false;
+        renderModal();
+        modal.focus();
+    }
+
+    function closeModal() {
+        modalKey = null;
+        modalBackdrop.hidden = true;
+    }
+
+    function renderModal() {
+        const record = recordsMap[modalKey];
+        if (!record) { closeModal(); return; }
+
+        const st = computeStatus(record, todayDate());
+        modalTitle.textContent = 'Block ' + blockName(record) + ' · ' + typeShort(record);
+        modalStatus.textContent = st.state === 'none'
+            ? 'No spray recorded yet.'
+            : 'Last spray ' + fmtShort(st.last) + ' · Next due ' + fmtShort(st.next) + ' · ' + statusText(st);
+
+        updateModalAddBtn();
+
+        const keys = st.keys.slice().reverse();
+        modalHistory.innerHTML = keys.length
+            ? keys.map(function (k) {
+                return '<li><span>' + esc(fmtLong(parseKey(k))) + '</span>' +
+                    '<button type="button" class="btn-act btn-delete" data-remove="' + esc(k) + '">Remove</button></li>';
+            }).join('')
+            : '<li class="history-empty">No sprays recorded.</li>';
+    }
+
+    function updateModalAddBtn() {
+        const record = recordsMap[modalKey];
+        if (!record) return;
+        const d = parseKey(modalDate.value);
+        let text = 'Record spray', ok = false;
+        if (!d) {
+            text = 'Pick a date';
+        } else if (modalDate.value > toKey(todayDate())) {
+            text = 'Date is in the future';
+        } else if (getSprayKeys(record).indexOf(modalDate.value) !== -1) {
+            text = 'Already recorded on ' + fmtShort(d);
         } else {
-            record.circledDays[dateKey] = isCircled;
-            saveLocal();
-            renderTable();
+            text = 'Record spray on ' + fmtShort(d);
+            ok = true;
         }
+        modalAddBtn.textContent = text;
+        modalAddBtn.disabled = !ok;
     }
 
-    function autoApplyStartOne(key, dateKey) {
-        const record = recordsMap[key];
-        let currDate = parseLocalDateKey(dateKey);
-        realToday = getTodayLocalDate();
+    modalDate.addEventListener('input', updateModalAddBtn);
+    modalAddBtn.addEventListener('click', function () {
+        if (modalAddBtn.disabled || !modalKey) return;
+        sprayOn(modalKey, modalDate.value);
+    });
+    modalHistory.addEventListener('click', function (e) {
+        const btn = e.target.closest('button[data-remove]');
+        if (!btn || !modalKey) return;
+        const record = recordsMap[modalKey];
+        const dateKey = btn.dataset.remove;
+        changeSprays(modalKey, function (s) { delete s[dateKey]; return s; },
+            'Removed spray ' + fmtShort(parseKey(dateKey)) + ' from ' + blockName(record));
+    });
+    $('modalCloseBtn').addEventListener('click', closeModal);
+    modalBackdrop.addEventListener('click', function (e) { if (e.target === modalBackdrop) closeModal(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && modalKey) closeModal(); });
 
-        let updatesDaily = {};
-        let currentDayNum = 1;
-
-        while (currentDayNum <= targetIntervalDays || currDate.getTime() <= realToday.getTime()) {
-            let y = currDate.getFullYear();
-            let m = String(currDate.getMonth() + 1).padStart(2, '0');
-            let d = String(currDate.getDate()).padStart(2, '0');
-            let keyStr = `${y}-${m}-${d}`;
-
-            updatesDaily[keyStr] = currentDayNum;
-            currDate.setDate(currDate.getDate() + 1);
-            currentDayNum++;
-        }
-
-        if (isCloudActive) {
-            db.child(key).child('dailyDays').update(updatesDaily);
-        } else {
-            if (!record.dailyDays) record.dailyDays = {};
-            Object.assign(record.dailyDays, updatesDaily);
-            saveLocal();
-            renderTable();
-        }
+    // ---------- Toast with undo ----------
+    function showToast(message, undoFn) {
+        toastMsg.textContent = message;
+        toastUndoFn = undoFn;
+        toastUndo.hidden = !undoFn;
+        toast.hidden = false;
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(hideToast, 8000);
     }
+    function hideToast() {
+        toast.hidden = true;
+        toastUndoFn = null;
+    }
+    toastUndo.addEventListener('click', function () {
+        const fn = toastUndoFn;
+        hideToast();
+        if (fn) fn();
+    });
 
-    window.handleCellRightClick = function(event, key, dateKey) {
-        event.preventDefault();
+    // ---------- Add / edit / delete programs ----------
+    function editRecord(key) {
         const record = recordsMap[key];
-        if (confirm(`Clear day sequence starting from date ${dateKey}?`)) {
-            if (!record.dailyDays) return;
-
-            let currDate = parseLocalDateKey(dateKey);
-            realToday = getTodayLocalDate();
-
-            let updatesDaily = {};
-            let updatesCircled = {};
-            let currentDayNum = 1;
-
-            while (currentDayNum <= targetIntervalDays || currDate.getTime() <= realToday.getTime()) {
-                let y = currDate.getFullYear();
-                let m = String(currDate.getMonth() + 1).padStart(2, '0');
-                let d = String(currDate.getDate()).padStart(2, '0');
-                let keyStr = `${y}-${m}-${d}`;
-
-                updatesDaily[keyStr] = null;
-                updatesCircled[keyStr] = null;
-
-                currDate.setDate(currDate.getDate() + 1);
-                currentDayNum++;
-            }
-
-            if (isCloudActive) {
-                db.child(key).child('dailyDays').update(updatesDaily);
-                db.child(key).child('circledDays').update(updatesCircled);
-            } else {
-                Object.keys(updatesDaily).forEach(k => {
-                    delete record.dailyDays[k];
-                    if (record.circledDays) delete record.circledDays[k];
-                });
-                saveLocal();
-                renderTable();
-            }
-        }
-    };
-
-    window.resetBlockSequence = function(key) {
-        const record = recordsMap[key];
-        if (confirm(`Reset all running numbers and circled dates for Block "${record.block}"?`)) {
-            if (isCloudActive) {
-                db.child(key).child('dailyDays').remove();
-                db.child(key).child('circledDays').remove();
-            } else {
-                recordsMap[key].dailyDays = {};
-                recordsMap[key].circledDays = {};
-                saveLocal();
-                renderTable();
-            }
-        }
-    };
-
-    window.editRecord = function(key) {
-        const record = recordsMap[key];
-        document.getElementById('block').value = record.block;
-        document.getElementById('sprayType').value = record.sprayType;
+        if (!record) return;
+        blockInput.value = record.block || '';
+        sprayTypeSelect.value = record.sprayType || 'Circle & Path Spray';
         editKeyInput.value = key;
-
-        formTitle.innerText = 'Edit Program';
-        submitBtn.innerText = 'Update Program';
-        cancelBtn.style.display = 'block';
+        formError.textContent = '';
+        formTitle.textContent = 'Edit Program';
+        submitBtn.textContent = 'Update Program';
+        cancelBtn.hidden = false;
         window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
+    }
 
     function resetForm() {
         form.reset();
         editKeyInput.value = '';
-        formTitle.innerText = 'Add Block Program';
-        submitBtn.innerText = 'Add Program';
-        cancelBtn.style.display = 'none';
+        formError.textContent = '';
+        formTitle.textContent = 'Add Block Program';
+        submitBtn.textContent = 'Add Program';
+        cancelBtn.hidden = true;
     }
+    cancelBtn.addEventListener('click', resetForm);
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', function (e) {
         e.preventDefault();
-
         const editKey = editKeyInput.value;
-        const blockVal = document.getElementById('block').value;
-        const sprayTypeVal = document.getElementById('sprayType').value;
+        const block = blockInput.value.trim();
+        const type = sprayTypeSelect.value;
+        formError.textContent = '';
+        if (!block) { formError.textContent = 'Enter a block name.'; return; }
 
-        if (isCloudActive) {
-            if (editKey) {
-                db.child(editKey).update({ block: blockVal, sprayType: sprayTypeVal });
-            } else {
-                db.push({ block: blockVal, sprayType: sprayTypeVal, dailyDays: {}, circledDays: {} });
-            }
-        } else {
-            const key = editKey || 'rec_' + Date.now();
-            if (!recordsMap[key]) recordsMap[key] = { dailyDays: {}, circledDays: {} };
-            recordsMap[key].block = blockVal;
-            recordsMap[key].sprayType = sprayTypeVal;
-            saveLocal();
-            renderTable();
+        const duplicate = Object.keys(recordsMap).some(function (k) {
+            const r = recordsMap[k];
+            return k !== editKey && r && typeof r === 'object' &&
+                String(r.block || '').trim().toLowerCase() === block.toLowerCase() && r.sprayType === type;
+        });
+        if (duplicate) {
+            formError.textContent = 'This block already has a ' + type + ' program.';
+            return;
         }
 
+        if (editKey) updateRecord(editKey, block, type);
+        else createRecord(block, type);
         resetForm();
     });
 
-    window.deleteRecord = function(key) {
-        if (confirm('Delete this program?')) {
-            if (isCloudActive) {
-                db.child(key).remove();
-            } else {
-                delete recordsMap[key];
-                saveLocal();
-                renderTable();
-            }
+    function deleteRecord(key) {
+        const record = recordsMap[key];
+        if (!record) return;
+        if (confirm('Delete "' + blockName(record) + '" (' + typeShort(record) + ') and all of its spray history? This cannot be undone.')) {
+            if (modalKey === key) closeModal();
+            removeRecord(key);
             resetForm();
         }
-    };
+    }
 
-    renderTable();
+    // ---------- Keep "today" fresh if the page stays open ----------
+    setInterval(function () {
+        if (toKey(todayDate()) !== lastRenderedDay) render();
+    }, 60000);
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && toKey(todayDate()) !== lastRenderedDay) render();
+    });
+
+    // ---------- Start ----------
+    syncPeriodControls();
+    setIntervalDays(targetIntervalDays);
+    initCloud();
+    render();
+})();
 </script>
 
 </body>
