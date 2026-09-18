@@ -118,6 +118,23 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         }
 
+        .btn-sync-today {
+            background-color: #0288d1;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            width: auto;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+        }
+
+        .btn-sync-today:active {
+            opacity: 0.85;
+        }
+
         .grid-layout {
             display: grid;
             grid-template-columns: 1fr;
@@ -346,7 +363,8 @@
         </div>
 
         <div class="control-group">
-            <label style="margin:0;"><strong>Target Interval:</strong></label>
+            <button type="button" class="btn-sync-today" onclick="refreshNumbersToToday()">🔄 Sync to Today</button>
+            
             <div class="interval-toggle">
                 <button type="button" class="interval-btn" id="btnInterval30" onclick="setIntervalDays(30)">30 Days</button>
                 <button type="button" class="interval-btn active" id="btnInterval45" onclick="setIntervalDays(45)">45 Days</button>
@@ -391,7 +409,6 @@
 </div>
 
 <script>
-    // Updated configuration matching your interval-monitor Firebase Database
     const firebaseConfig = {
         apiKey: "AIzaSyAXtaO7IVfKzRXs91hC0IB6RhEReJQXBH0",
         authDomain: "interval-monitor.firebaseapp.com",
@@ -447,9 +464,19 @@
     const daysCountLabel = document.getElementById('daysCountLabel');
 
     let targetIntervalDays = 45;
-    const realToday = new Date();
-    realToday.setHours(0,0,0,0);
 
+    function getTodayLocalDate() {
+        const d = new Date();
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+
+    function parseLocalDateKey(dateKeyStr) {
+        if (!dateKeyStr) return null;
+        const parts = dateKeyStr.split('-');
+        return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+    }
+
+    let realToday = getTodayLocalDate();
     let currentMonth = realToday.getMonth();
     let currentYear = realToday.getFullYear();
 
@@ -487,15 +514,15 @@
 
     function calculateNextDate(startDateStr) {
         if (!startDateStr) return null;
-        const d = new Date(startDateStr);
+        const d = parseLocalDateKey(startDateStr);
         d.setDate(d.getDate() + targetIntervalDays);
         return d;
     }
 
     function formatDateShort(dateStrOrObj) {
         if (!dateStrOrObj) return '-';
-        const d = new Date(dateStrOrObj);
-        if (isNaN(d)) return '-';
+        const d = (typeof dateStrOrObj === 'string') ? parseLocalDateKey(dateStrOrObj) : new Date(dateStrOrObj);
+        if (!d || isNaN(d)) return '-';
         return `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`;
     }
 
@@ -515,7 +542,44 @@
         renderTable();
     }
 
+    function refreshNumbersToToday() {
+        realToday = getTodayLocalDate();
+        const keys = Object.keys(recordsMap);
+
+        keys.forEach(key => {
+            const record = recordsMap[key];
+            const startDateStr = getRedCircledStartDate(record);
+            if (!startDateStr) return;
+
+            let currDate = parseLocalDateKey(startDateStr);
+            let updatesDaily = {};
+            let currentDayNum = 1;
+
+            while (currDate.getTime() <= realToday.getTime()) {
+                let y = currDate.getFullYear();
+                let m = String(currDate.getMonth() + 1).padStart(2, '0');
+                let d = String(currDate.getDate()).padStart(2, '0');
+                let keyStr = `${y}-${m}-${d}`;
+
+                updatesDaily[keyStr] = currentDayNum;
+                currDate.setDate(currDate.getDate() + 1);
+                currentDayNum++;
+            }
+
+            if (isCloudActive) {
+                db.child(key).child('dailyDays').update(updatesDaily);
+            } else {
+                if (!record.dailyDays) record.dailyDays = {};
+                Object.assign(record.dailyDays, updatesDaily);
+            }
+        });
+
+        if (!isCloudActive) saveLocal();
+        renderTable();
+    }
+
     function renderTable() {
+        realToday = getTodayLocalDate();
         const totalDays = getDaysInMonth(currentMonth, currentYear);
         daysCountLabel.innerText = `${totalDays} Days`;
 
@@ -684,13 +748,13 @@
 
     function autoApplyStartOne(key, dateKey) {
         const record = recordsMap[key];
-        let currDate = new Date(dateKey);
-        currDate.setHours(0,0,0,0);
+        let currDate = parseLocalDateKey(dateKey);
+        realToday = getTodayLocalDate();
 
         let updatesDaily = {};
         let currentDayNum = 1;
 
-        while (currentDayNum <= targetIntervalDays || currDate <= realToday) {
+        while (currentDayNum <= targetIntervalDays || currDate.getTime() <= realToday.getTime()) {
             let y = currDate.getFullYear();
             let m = String(currDate.getMonth() + 1).padStart(2, '0');
             let d = String(currDate.getDate()).padStart(2, '0');
@@ -717,14 +781,14 @@
         if (confirm(`Clear day sequence starting from date ${dateKey}?`)) {
             if (!record.dailyDays) return;
 
-            let currDate = new Date(dateKey);
-            currDate.setHours(0,0,0,0);
+            let currDate = parseLocalDateKey(dateKey);
+            realToday = getTodayLocalDate();
 
             let updatesDaily = {};
             let updatesCircled = {};
             let currentDayNum = 1;
 
-            while (currentDayNum <= targetIntervalDays || currDate <= realToday) {
+            while (currentDayNum <= targetIntervalDays || currDate.getTime() <= realToday.getTime()) {
                 let y = currDate.getFullYear();
                 let m = String(currDate.getMonth() + 1).padStart(2, '0');
                 let d = String(currDate.getDate()).padStart(2, '0');
@@ -743,7 +807,7 @@
             } else {
                 Object.keys(updatesDaily).forEach(k => {
                     delete record.dailyDays[k];
-                    delete record.circledDays[k];
+                    if (record.circledDays) delete record.circledDays[k];
                 });
                 saveLocal();
                 renderTable();
